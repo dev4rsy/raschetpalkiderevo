@@ -1,0 +1,399 @@
+<title>Расчёт деревянной балки</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+/* Layout: чертёжный лист в клетку. Слева исходные данные, справа результаты и эпюры. */
+:root{
+  --paper:#eef3f8; --grid:rgba(31,78,140,.09); --panel:#f8fbfe; --ink:#14233a; --muted:#566883;
+  --line:#1f3d66; --soft:#c9d6e6; --accent:#1f4e8c; --field:#ffffff; --sel:#d7e5f8;
+  --ok:#1b7a4a; --okbg:#dcf0e4; --warn:#b4580a; --warnbg:#fae6d0; --bad:#b3261e; --badbg:#f8dcd8;
+  --track:#c9d6e6; --curve:#1f4e8c; --curve2:#b4580a;
+  --f-display:'Chakra Petch','Arial Narrow',sans-serif;
+  --f-body:'IBM Plex Sans Condensed','Arial Narrow',Arial,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0e1a2b; --grid:rgba(120,165,225,.09); --panel:#15243a; --ink:#e2eaf5; --muted:#9db0c9;
+  --line:#6f98cf; --soft:#2c4262; --accent:#7fb0ee; --field:#0f1c2f; --sel:#244569;
+  --ok:#5fd394; --okbg:#143a29; --warn:#f0a35c; --warnbg:#42290f; --bad:#ff8a80; --badbg:#451a17;
+  --track:#2c4262; --curve:#7fb0ee; --curve2:#f0a35c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0e1a2b; --grid:rgba(120,165,225,.09); --panel:#15243a; --ink:#e2eaf5; --muted:#9db0c9;
+  --line:#6f98cf; --soft:#2c4262; --accent:#7fb0ee; --field:#0f1c2f; --sel:#244569;
+  --ok:#5fd394; --okbg:#143a29; --warn:#f0a35c; --warnbg:#42290f; --bad:#ff8a80; --badbg:#451a17;
+  --track:#2c4262; --curve:#7fb0ee; --curve2:#f0a35c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background-color:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.4;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;padding-block:28px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet{max-width:1180px;margin:0 auto}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(30px,5.5vw,52px);letter-spacing:.02em;text-transform:uppercase;margin:0 0 8px;line-height:1.05;text-wrap:balance}
+.lead{margin:0 0 18px;max-width:68ch;color:var(--muted);font-size:16px}
+.rule{border:0;border-top:2px solid var(--line);margin:0 0 22px}
+h2{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h3{font-family:var(--f-mono);font-weight:500;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
+.cols{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:28px;align-items:start}
+@media(max-width:860px){.cols{grid-template-columns:minmax(0,1fr)}}
+.lbl{display:block;font-family:var(--f-mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+input,select{width:100%;font:500 17px var(--f-mono);color:var(--ink);background:var(--field);border:1px solid var(--soft);border-radius:2px;padding:9px 11px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[readonly]{background:transparent;border-style:dashed;color:var(--muted)}
+select.task{border:1.5px solid var(--bad);font-size:18px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.row>div{min-width:0}
+.schemes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sch{background:var(--panel);border:1px solid var(--soft);border-radius:2px;padding:6px 4px 4px;cursor:pointer;color:var(--ink);font:500 15px var(--f-mono);display:flex;flex-direction:column;align-items:center;gap:2px}
+.sch svg{width:100%;height:46px;display:block}
+.sch[aria-pressed="true"]{background:var(--sel);border:2px solid var(--accent)}
+.note{font-size:13px;color:var(--muted);margin:8px 0 0}
+.btn{font:600 14px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--paper);background:var(--accent);border:0;border-radius:2px;padding:10px 14px;cursor:pointer;margin-top:12px}
+.btn:hover{filter:brightness(1.1)}
+.banner{padding:16px 18px;border:2px solid;font:700 20px var(--f-display);letter-spacing:.02em}
+.banner.ok{background:var(--okbg);border-color:var(--ok);color:var(--ok)}
+.banner.bad{background:var(--badbg);border-color:var(--bad);color:var(--bad)}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+@media(max-width:700px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--panel);border:1px solid var(--soft);padding:10px 12px;min-width:0}
+.tile .k{font:11.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font:600 26px var(--f-mono);margin-top:4px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.check{background:var(--panel);border:1px solid var(--soft);border-left:4px solid var(--ok);padding:12px 14px 10px;margin-top:10px}
+.check.warn{border-left-color:var(--warn)} .check.bad{border-left-color:var(--bad)}
+.check .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.check .t{font:600 18px var(--f-body)}
+.pill{font:600 11.5px var(--f-mono);letter-spacing:.08em;padding:3px 8px;background:var(--okbg);color:var(--ok);white-space:nowrap}
+.check.warn .pill{background:var(--warnbg);color:var(--warn)} .check.bad .pill{background:var(--badbg);color:var(--bad)}
+.check .f{font:500 14.5px var(--f-mono);margin:6px 0 8px;overflow-wrap:anywhere}
+.bar{height:6px;background:var(--track);position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--ok)}
+.check.warn .bar i{background:var(--warn)} .check.bad .bar i{background:var(--bad)}
+.check .u{font:12.5px var(--f-mono);color:var(--muted);margin-top:5px}
+.chart{background:var(--panel);border:1px solid var(--soft);margin-top:10px;padding:8px 10px 4px}
+.chart .ct{font:11.5px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.chart svg{width:100%;height:auto;display:block}
+details{margin-top:16px;background:var(--panel);border:1px solid var(--soft);padding:10px 14px}
+summary{cursor:pointer;font:600 13px var(--f-mono);letter-spacing:.08em;text-transform:uppercase}
+pre{font:13.5px/1.55 var(--f-mono);margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+
+<div class="sheet">
+<h1>Расчёт деревянной балки</h1>
+<p class="lead">Проверка по двум группам предельных состояний: прочность по σ и τ, устойчивость плоской формы и прогиб. Эпюры Q, M и прогибов строятся сами.</p>
+<hr class="rule">
+<div class="cols">
+<div>
+  <h2>Исходные данные</h2>
+  <label class="lbl" for="variant">Задание</label>
+  <select id="variant" class="task"></select>
+
+  <h3>Расчётная схема</h3>
+  <div class="schemes" id="schemes"></div>
+  <p class="note" id="schNote"></p>
+
+  <div class="row">
+    <div><label class="lbl" for="N">N, кН</label><input id="N" type="number" step="any" min="0" inputmode="decimal"></div>
+    <div><label class="lbl" for="q">q, кН/м</label><input id="q" type="number" step="any" min="0" inputmode="decimal"></div>
+  </div>
+  <div class="row">
+    <div><label class="lbl" for="L">L, м</label><input id="L" type="number" step="any" min="0.1" inputmode="decimal"></div>
+    <div><label class="lbl" for="A">a, м</label><input id="A" type="number" step="any" min="0" inputmode="decimal"></div>
+  </div>
+  <div style="margin-top:12px"><label class="lbl" for="Bv">b = L − a, м (для схемы б)</label><input id="Bv" readonly></div>
+
+  <h2 style="margin-top:28px">Материал</h2>
+  <label class="lbl" for="species">Порода</label>
+  <select id="species"></select>
+  <div class="row">
+    <div><label class="lbl" for="grade">Сорт</label>
+      <select id="grade"><option value="1">1 сорт</option><option value="2">2 сорт</option><option value="3">3 сорт</option></select></div>
+    <div><label class="lbl" for="tw">t-w условия</label>
+      <select id="tw"><option value="1">1 (сухой)</option><option value="2">2 (нормальный)</option><option value="3">3 (влажный)</option><option value="4">4 (мокрый)</option></select></div>
+  </div>
+  <div class="row">
+    <div><label class="lbl" for="mdl">m дл (длит. нагрузка)</label><input id="mdl" type="number" step="0.01" min="0.1" max="1" inputmode="decimal"></div>
+    <div><label class="lbl" for="E">E, МПа</label><input id="E" type="number" step="100" min="1000" inputmode="decimal"></div>
+  </div>
+  <div style="margin-top:12px"><label class="lbl" for="lim">Предельный прогиб [f]</label>
+    <select id="lim">
+      <option value="250">1/250 — балки междуэтажных перекрытий</option>
+      <option value="200">1/200 — чердачные, прогоны, стропила</option>
+      <option value="300">1/300 — фермы, клееные балки</option>
+      <option value="150">1/150 — консольные балки, настилы</option>
+      <option value="400">1/400 — несущие элементы ендов</option>
+    </select></div>
+
+  <h2 style="margin-top:28px">Сечение</h2>
+  <div class="row">
+    <div><label class="lbl" for="b">b, мм</label><input id="b" type="number" step="5" min="10" inputmode="decimal"></div>
+    <div><label class="lbl" for="h">h, мм</label><input id="h" type="number" step="5" min="10" inputmode="decimal"></div>
+  </div>
+  <div style="margin-top:12px"><label class="lbl" for="lp">l р, м (шаг раскрепления из плоскости)</label><input id="lp" type="number" step="any" min="0.1" inputmode="decimal"></div>
+  <button class="btn" id="fit" type="button">Подобрать h по ширине b</button>
+  <p class="note">Собственный вес балки в нагрузку не включён: учитывайте его в q сами.</p>
+</div>
+
+<div>
+  <h2>Результаты</h2>
+  <div class="banner" id="banner"></div>
+  <div class="tiles">
+    <div class="tile"><div class="k">M max, кН·м</div><div class="v" id="tM"></div></div>
+    <div class="tile"><div class="k">Q max, кН</div><div class="v" id="tQ"></div></div>
+    <div class="tile"><div class="k">R<sub>A</sub> / R<sub>B</sub>, кН</div><div class="v" id="tR"></div></div>
+    <div class="tile"><div class="k">h мин. по всем проверкам, мм</div><div class="v" id="tH"></div></div>
+  </div>
+  <div id="checks"></div>
+  <h3>Эпюры</h3>
+  <div id="charts"></div>
+  <details><summary>Ход расчёта</summary><pre id="steps"></pre></details>
+</div>
+</div>
+</div>
+<script>
+/* ---------- Данные из практического занятия 6 ---------- */
+// mп: переходные коэффициенты (изгиб; скалывание). Тополь: значение 0,4 принято по СП 64, в таблице занятия строки нет.
+const SPECIES = {
+  'сосна':{mu:1,ms:1}, 'ель':{mu:1,ms:1}, 'лиственница':{mu:1.2,ms:1}, 'пихта':{mu:.8,ms:.8},
+  'кедр сибирский':{mu:.9,ms:.9}, 'кедр красноярский':{mu:.65,ms:.65},
+  'дуб':{mu:1.3,ms:1.3}, 'ясень':{mu:1.3,ms:1.6}, 'акация':{mu:1.5,ms:1.8},
+  'береза':{mu:1.1,ms:1.3}, 'бук':{mu:1.1,ms:1.3}, 'вяз':{mu:1,ms:1}, 'тополь':{mu:.4,ms:.4}
+};
+const RU = {1:14, 2:10, 3:6.5};      // МПа, изгиб, сосна/ель (СП 64.13330)
+const RSK = {1:2.4, 2:2.1, 3:1.2};   // МПа, скалывание при изгибе
+const MV = {1:1, 2:.9, 3:.85, 4:.75}; // табл. значений m в из занятия
+const KF = {a:1.35, b:1.35, v:1.13, g:1.13, d:1.75, e:1.35}; // kф по форме эпюры M (ориентировочно для д, е)
+const SCHEMES = {
+  a:{n:'а', t:'Шарнирная балка, сила N посередине пролёта.', needN:1},
+  b:{n:'б', t:'Шарнирная балка, сила N на расстоянии a от опоры A.', needN:1, needA:1},
+  v:{n:'в', t:'Шарнирная балка, равномерная q.', needQ:1},
+  g:{n:'г', t:'Шарнирная балка, треугольная нагрузка (q — наибольшая ордината у опоры B).', needQ:1},
+  d:{n:'д', t:'Консоль, сила N на свободном конце.', needN:1, cant:1},
+  e:{n:'е', t:'Консоль, равномерная q.', needQ:1, cant:1}
+};
+// № варианта: [схема, N, q, L, a, порода, сорт, t-w]
+const VAR = {
+  1:['a',15,0,5,0,'пихта',1,2], 2:['b',18,0,5.5,2.5,'сосна',2,2], 3:['v',0,10,4.5,0,'ясень',2,2],
+  4:['g',0,10,5,0,'береза',1,2], 5:['d',3.5,0,3,0,'ель',2,3], 6:['e',0,2,2.5,0,'сосна',1,1],
+  7:['b',25,0,4.5,2.5,'тополь',1,2], 8:['d',5,0,2,0,'вяз',1,3], 9:['a',11,0,4.5,0,'бук',2,2],
+  10:['v',0,10,4.5,0,'ясень',2,2], 11:['g',0,25,4.5,0,'береза',2,2], 12:['a',9,0,5.5,0,'акация',2,2],
+  13:['b',15,0,6,3.5,'сосна',3,1], 14:['d',4,0,2.5,0,'сосна',3,1], 15:['e',0,1.5,1.85,0,'пихта',2,3],
+  16:['b',16,0,3.8,1.5,'пихта',3,2], 17:['d',4.8,0,6,0,'ель',3,1], 18:['a',13,0,6,0,'бук',1,1],
+  19:['v',0,10,5,0,'сосна',3,2], 20:['v',0,12,4.3,0,'пихта',1,2], 21:['a',10,0,5.8,0,'сосна',3,1],
+  22:['b',17,0,5.2,2.5,'пихта',2,2], 23:['v',0,12,4.2,0,'ясень',1,3], 24:['g',0,13,5.1,0,'береза',3,1],
+  25:['d',7,0,3.6,0,'ель',2,2], 26:['e',0,9.8,2.8,0,'тополь',1,3], 27:['a',16,0,4.9,0,'вяз',3,1],
+  28:['b',14,0,4.8,3.5,'бук',2,2], 29:['v',0,14,5.4,0,'акация',1,3], 30:['g',0,9.5,4.1,0,'сосна',3,1],
+  31:['d',8.5,0,6.2,0,'пихта',2,2], 32:['e',0,7.9,6.1,0,'ясень',1,3], 33:['a',12,0,4.7,0,'береза',3,1],
+  34:['b',13,0,4.4,2,'ель',2,2], 35:['v',0,11,5.3,0,'тополь',1,3]
+};
+
+/* ---------- Расчётное ядро ---------- */
+// Единицы: Н, мм, МПа. Нагрузки на входе: кН, кН/м (1 кН/м = 1 Н/мм), м.
+function beam(s, N, q, Lm, Am){
+  const L = Lm*1000, a = Am*1000, b = L - a, Nn = N*1000;
+  let RA, RB, Mmax, Qmax, kdef; // kdef: f = kdef / (E*I)
+  switch(s){
+    case 'a': RA=RB=Nn/2; Mmax=Nn*L/4; Qmax=Nn/2; kdef=Nn*L**3/48; break;
+    case 'b': RA=Nn*b/L; RB=Nn*a/L; Mmax=Nn*a*b/L; Qmax=Math.max(RA,RB);
+      { const c=Math.min(a,b); kdef = Nn*c*Math.pow(L*L-c*c,1.5)/(9*Math.sqrt(3)*L); } break;
+    case 'v': RA=RB=q*L/2; Mmax=q*L*L/8; Qmax=q*L/2; kdef=5*q*L**4/384; break;
+    case 'g': RA=q*L/6; RB=q*L/3; Mmax=0.0642*q*L*L; Qmax=q*L/3; kdef=0.00651*q*L**4; break;
+    case 'd': RA=Nn; RB=0; Mmax=Nn*L; Qmax=Nn; kdef=Nn*L**3/3; break;
+    case 'e': RA=q*L; RB=0; Mmax=q*L*L/2; Qmax=q*L; kdef=q*L**4/8; break;
+  }
+  return {L,a,b,RA,RB,Mmax,Qmax,kdef};
+}
+// Функции Q(x), M(x), y(x) для эпюр (x в мм; Q в Н; M в Н·мм; y в мм при заданном EI)
+function curves(s, N, q, Lm, Am, EI, n=120){
+  const L=Lm*1000, a=Am*1000, b=L-a, P=N*1000, xs=[], Q=[], M=[], Y=[];
+  for(let i=0;i<=n;i++){
+    const x=L*i/n; let Qx, Mx, y;
+    if(s==='a'){ const R=P/2; Qx=x<L/2?R:-R; const xm=Math.min(x,L-x); Mx=R*xm; y=P*xm*(3*L*L-4*xm*xm)/(48*EI); }
+    else if(s==='b'){ const Ra=P*b/L; Qx=x<a?Ra:Ra-P; Mx=x<=a?Ra*x:Ra*x-P*(x-a);
+      y = x<=a ? P*b*x*(L*L-b*b-x*x)/(6*EI*L) : P*a*(L-x)*(L*L-a*a-(L-x)**2)/(6*EI*L); }
+    else if(s==='v'){ Qx=q*(L/2-x); Mx=q*x*(L-x)/2; y=q*x*(L**3-2*L*x*x+x**3)/(24*EI); }
+    else if(s==='g'){ Qx=q*L/6-q*x*x/(2*L); Mx=q*L*x/6-q*x**3/(6*L); y=q*x*(7*L**4-10*L*L*x*x+3*x**4)/(360*L*EI); }
+    else if(s==='d'){ Qx=-P; Mx=-P*(L-x); y=P*x*x*(3*L-x)/(6*EI); }
+    else { Qx=-q*(L-x); Mx=-q*(L-x)**2/2; y=q*x*x*(6*L*L-4*L*x+x*x)/(24*EI); }
+    xs.push(x); Q.push(Qx); M.push(Mx); Y.push(y);
+  }
+  return {xs,Q,M,Y};
+}
+function props(bm, hm){ return {W:bm*hm*hm/6, I:bm*hm**3/12, S:bm*hm*hm/8}; }
+function materials(p){
+  const sp=SPECIES[p.species], Ru0=RU[p.grade], Rs0=RSK[p.grade];
+  return { Ru:Ru0*sp.mu*MV[p.tw]*p.mdl, Rsk:Rs0*sp.ms*MV[p.tw]*p.mdl, Ru0, Rs0, mu:sp.mu, ms:sp.ms, mv:MV[p.tw] };
+}
+function checks(p, hmm){
+  const bm=beam(p.s,p.N,p.q,p.L,p.A), sec=props(p.b,hmm), m=materials(p);
+  const sigma=bm.Mmax/sec.W, tau=bm.Qmax*sec.S/(sec.I*p.b);
+  const f=bm.kdef/(p.E*sec.I), lf=SCHEMES[p.s].cant?2*bm.L:bm.L, fu=lf/p.lim;
+  const lp=p.lp*1000, phi=140*p.b*p.b/(lp*hmm)*KF[p.s], phiE=Math.min(phi,1);
+  const stab=bm.Mmax/(phiE*sec.W), needStab=hmm/p.b>4;
+  return {bm,sec,m,sigma,tau,f,lf,fu,phi,phiE,stab,needStab,
+    uS:sigma/m.Ru, uT:tau/m.Rsk, uF:f/fu, uP:(needStab?stab:sigma)/m.Ru};
+}
+function ok(c){ return Math.max(c.uS,c.uT,c.uF,c.uP)<=1+1e-9; }
+function hMin(p){
+  for(let h=20; h<=3000; h++){ if(ok(checks(p,h))) return h; }
+  return NaN;
+}
+const roundUp=(v,s)=>Math.ceil(v/s-1e-9)*s;
+/* ---------- Интерфейс ---------- */
+const $ = id => document.getElementById(id);
+const fmt = (v,d=2) => Number.isFinite(v) ? v.toFixed(d).replace('.',',') : '—';
+const ICON = (() => {
+  const base = '<line x1="14" y1="34" x2="106" y2="34" stroke-width="3"/>';
+  const tri = x => `<path d="M${x-6} 44 L${x} 35 L${x+6} 44 Z" stroke-width="1.5" fill="none"/>`;
+  const arrow = (x,y0=6,y1=32) => `<path d="M${x} ${y0} V${y1} m-4 -6 l4 6 l4 -6" stroke-width="1.6" fill="none"/>`;
+  const udl = (x0=16,x1=104,y0=12) => { let s=`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke-width="1.5"/>`;
+    for(let x=x0;x<=x1;x+=11) s+=arrow(x,y0,32); return s; };
+  const wall = '<line x1="14" y1="14" x2="14" y2="46" stroke-width="3"/><path d="M14 18 l-6 5 M14 26 l-6 5 M14 34 l-6 5 M14 42 l-6 5" stroke-width="1.2"/>';
+  const wrap = inner => `<svg viewBox="0 0 120 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  return {
+    a: wrap(base+tri(14)+tri(106)+arrow(60)),
+    b: wrap(base+tri(14)+tri(106)+arrow(38)),
+    v: wrap(base+tri(14)+tri(106)+udl()),
+    g: wrap(base+tri(14)+tri(106)+'<path d="M16 32 L104 10 V32" stroke-width="1.5"/>'+[30,44,58,72,86,100].map(x=>arrow(x,34-(x-16)*.25-0,32)).join('')),
+    d: wrap(wall.replace('M14 18','M14 18')+'<line x1="14" y1="30" x2="106" y2="30" stroke-width="3"/>'+arrow(106,4,28)),
+    e: wrap(wall+'<line x1="14" y1="30" x2="106" y2="30" stroke-width="3"/>'+udl(18,104,10).replace(/32/g,'28'))
+  };
+})();
+
+const st = {s:'v', lpTouched:false, loading:false};
+
+function buildStatic(){
+  const v=$('variant'); let h='<option value="0">Свой вариант</option>';
+  for(const k in VAR) h+=`<option value="${k}">Вариант ${k}</option>`;
+  v.innerHTML=h;
+  $('species').innerHTML=Object.keys(SPECIES).map(k=>`<option value="${k}">${k[0].toUpperCase()+k.slice(1)}</option>`).join('');
+  $('schemes').innerHTML=Object.keys(SCHEMES).map(k=>
+    `<button type="button" class="sch" data-s="${k}" aria-pressed="false" aria-label="Схема ${SCHEMES[k].n}">${ICON[k]}<span>${SCHEMES[k].n})</span></button>`).join('');
+}
+function setScheme(s){
+  st.s=s;
+  document.querySelectorAll('.sch').forEach(b=>b.setAttribute('aria-pressed', b.dataset.s===s?'true':'false'));
+  const d=SCHEMES[s];
+  $('schNote').textContent=d.t;
+  $('N').disabled=!d.needN; $('q').disabled=!d.needQ; $('A').disabled=!d.needA;
+  $('N').style.opacity=d.needN?1:.45; $('q').style.opacity=d.needQ?1:.45; $('A').style.opacity=d.needA?1:.45;
+}
+function loadVariant(k){
+  const [s,N,q,L,A,sp,gr,tw]=VAR[k];
+  st.loading=true; setScheme(s);
+  $('N').value=N||0; $('q').value=q||0; $('L').value=L; $('A').value=A||0;
+  $('species').value=sp; $('grade').value=gr; $('tw').value=tw;
+  $('mdl').value=1; $('E').value=10000; $('lim').value=SCHEMES[s].cant?150:250;
+  $('b').value=150; $('lp').value=L; st.lpTouched=false;
+  $('h').value=250; const p=read(); const hm=hMin(p);
+  $('h').value=Number.isFinite(hm)?roundUp(hm,25):250;
+  st.loading=false;
+}
+function read(){
+  const n=id=>parseFloat(String($(id).value).replace(',','.'));
+  return {s:st.s,N:n('N')||0,q:n('q')||0,L:n('L'),A:n('A')||0,b:n('b'),h:n('h'),lp:n('lp'),E:n('E'),mdl:n('mdl'),lim:+$('lim').value,
+    species:$('species').value,grade:+$('grade').value,tw:+$('tw').value};
+}
+function valid(p){
+  const d=SCHEMES[p.s];
+  if(!(p.L>0&&p.b>0&&p.h>0&&p.E>0&&p.mdl>0&&p.lp>0)) return 'Заполните L, b, h, E, m дл и l р положительными числами.';
+  if(d.needN&&!(p.N>0)) return 'Задайте силу N больше нуля.';
+  if(d.needQ&&!(p.q>0)) return 'Задайте нагрузку q больше нуля.';
+  if(d.needA&&!(p.A>0&&p.A<p.L)) return 'Расстояние a должно быть больше 0 и меньше L.';
+  return '';
+}
+function checkCard(title, formula, u, extra, forceOk){
+  const good=u<=1+1e-9, cls=!good?'bad':(u>.9?'warn':'');
+  const pill=forceOk?'НЕ ТРЕБУЕТСЯ':(good?'ВЫПОЛНЯЕТСЯ':'НЕ ВЫПОЛНЯЕТСЯ');
+  return `<div class="check ${cls}"><div class="top"><div class="t">${title}</div><div class="pill">${pill}</div></div>
+  <div class="f">${formula}</div><div class="bar"><i style="width:${Math.min(100,u*100).toFixed(1)}%"></i></div>
+  <div class="u">${extra||'использование'} ${Math.round(u*100)} %</div></div>`;
+}
+function chartSVG(title, xs, vals, unit, color, positiveDown, Lm){
+  const W=640,H=168,ml=14,mr=14,mt=14,mb=26, pw=W-ml-mr, ph=H-mt-mb;
+  const mx=Math.max(0,...vals), mn=Math.min(0,...vals), span=(mx-mn)||1;
+  const X=i=>ml+pw*i/(xs.length-1);
+  const Yv=v=>{ const t=(v-mn)/span; return positiveDown? mt+ph*t : mt+ph*(1-t); };
+  const y0=Yv(0);
+  let pts=vals.map((v,i)=>`${X(i).toFixed(1)},${Yv(v).toFixed(1)}`).join(' ');
+  const area=`${X(0).toFixed(1)},${y0.toFixed(1)} ${pts} ${X(vals.length-1).toFixed(1)},${y0.toFixed(1)}`;
+  let imax=0; vals.forEach((v,i)=>{ if(Math.abs(v)>Math.abs(vals[imax])) imax=i; });
+  const lx=X(imax), ly=Yv(vals[imax]), anchor=imax<vals.length*.2?'start':imax>vals.length*.8?'end':'middle';
+  const above = positiveDown ? vals[imax]<0 : vals[imax]>=0;
+  const ty = above ? ly-6 : ly+14;
+  const tx = lx;
+  // подпись экстремума, если эпюра не нулевая
+  const lab = Math.abs(vals[imax])<1e-9 ? '' :
+    `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3.2" style="fill:${color}"/>
+     <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" style="fill:var(--ink);font:600 12.5px var(--f-mono)">${fmt(vals[imax],2)} ${unit}</text>`;
+  // вертикальные засечки
+  const tick=(i,t,a)=>`<line x1="${X(i)}" y1="${mt}" x2="${X(i)}" y2="${mt+ph}" style="stroke:var(--soft)" stroke-dasharray="3 3"/>
+    <text x="${X(i)}" y="${H-8}" text-anchor="${a}" style="fill:var(--muted);font:11.5px var(--f-mono)">${t}</text>`;
+  return `<div class="chart"><div class="ct">${title}</div>
+  <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title}">
+   ${tick(0,'0','start')}${tick(xs.length-1,'L = '+fmt(Lm,2)+' м','end')}
+   <polygon points="${area}" style="fill:${color};fill-opacity:.16"/>
+   <line x1="${ml}" y1="${y0.toFixed(1)}" x2="${W-mr}" y2="${y0.toFixed(1)}" style="stroke:var(--line)" stroke-width="1.5"/>
+   <polyline points="${pts}" fill="none" style="stroke:${color}" stroke-width="2.2" stroke-linejoin="round"/>
+   ${lab}</svg></div>`;
+}
+function render(){
+  const p=read(), err=valid(p), banner=$('banner');
+  if(err){
+    banner.className='banner bad'; banner.textContent=err;
+    ['tM','tQ','tR','tH'].forEach(i=>$(i).textContent='—');
+    $('checks').innerHTML=''; $('charts').innerHTML=''; $('steps').textContent=''; return;
+  }
+  $('Bv').value = p.s==='b' ? fmt(p.L-p.A,2) : '—';
+  const c=checks(p,p.h), bm=c.bm, hm=hMin(p);
+  const good=ok(c);
+  const fails=[]; if(c.uS>1)fails.push('прочность по σ'); if(c.uT>1)fails.push('скалывание'); if(c.uF>1)fails.push('прогиб'); if(c.needStab&&c.uP>1)fails.push('устойчивость плоской формы');
+  banner.className='banner '+(good?'ok':'bad');
+  banner.textContent = good ? 'Балка проходит все проверки' : 'Балка не проходит: '+fails.join(', ')+(Number.isFinite(hm)?'. Минимальная высота при b = '+fmt(p.b,0)+' мм: '+roundUp(hm,25)+' мм':'');
+  $('tM').textContent=fmt(bm.Mmax/1e6,2); $('tQ').textContent=fmt(bm.Qmax/1e3,2);
+  $('tR').textContent=SCHEMES[p.s].cant ? fmt(bm.RA/1e3,2)+' / —' : fmt(bm.RA/1e3,2)+' / '+fmt(bm.RB/1e3,2);
+  $('tH').textContent=Number.isFinite(hm)?roundUp(hm,25):'—';
+  const m=c.m;
+  let html='';
+  html+=checkCard('1. Прочность по нормальным напряжениям',`σ = M/W = ${fmt(c.sigma)} МПа ≤ R<sub>и</sub> = ${fmt(m.Ru)} МПа`,c.uS);
+  html+=checkCard('2. Скалывание при изгибе',`τ = QS/(Ib) = ${fmt(c.tau,3)} МПа ≤ R<sub>ск</sub> = ${fmt(m.Rsk,3)} МПа`,c.uT);
+  html+=checkCard('3. Прогиб (вторая группа)',`f = ${fmt(c.f)} мм ≤ [f] = 1/${p.lim} = ${fmt(c.fu)} мм · f/l = 1/${Math.round(c.lf/c.f)||'∞'}${SCHEMES[p.s].cant?' · l = 2L (консоль)':''}`,c.uF);
+  html+= c.needStab
+    ? checkCard('4. Устойчивость плоской формы',`M/(φ<sub>м</sub>·W) = ${fmt(c.stab)} МПа ≤ R<sub>и</sub> = ${fmt(m.Ru)} МПа · φ<sub>м</sub> = ${fmt(c.phi)}${c.phi>1?' → 1,00':''}`,c.uP)
+    : checkCard('4. Устойчивость плоской формы',`h/b = ${fmt(p.h/p.b)} ≤ 4: проверка не требуется при раскреплении сжатой кромки`,c.uS,'запас по σ',true);
+  $('checks').innerHTML=html;
+
+  const EI=p.E*c.sec.I, cv=curves(p.s,p.N,p.q,p.L,p.A,EI), Lm=p.L;
+  $('charts').innerHTML =
+    chartSVG('Эпюра Q, кН',cv.xs,cv.Q.map(v=>v/1e3),'кН','var(--curve)',false,Lm)+
+    chartSVG('Эпюра M, кН·м (на растянутой стороне)',cv.xs,cv.M.map(v=>Math.abs(v)/1e6),'кН·м','var(--curve)',true,Lm)+
+    chartSVG('Прогибы, мм',cv.xs,cv.Y,'мм','var(--curve2)',true,Lm);
+
+  const S=c.sec;
+  $('steps').textContent=[
+   `Схема ${SCHEMES[p.s].n}): ${SCHEMES[p.s].t}`,
+   `Опорные реакции: R_A = ${fmt(bm.RA/1e3)} кН, R_B = ${fmt(bm.RB/1e3)} кН`,
+   `M max = ${fmt(bm.Mmax/1e6)} кН·м;  Q max = ${fmt(bm.Qmax/1e3)} кН`,
+   `Сечение ${fmt(p.b,0)}×${fmt(p.h,0)} мм: W = bh²/6 = ${fmt(S.W/1e3,1)} см³;  I = bh³/12 = ${fmt(S.I/1e4,1)} см⁴;  S = bh²/8 = ${fmt(S.S/1e3,1)} см³`,
+   `R_и = ${fmt(m.Ru0,1)} · m_п(${fmt(m.mu)}) · m_в(${fmt(m.mv)}) · m_дл(${fmt(p.mdl)}) = ${fmt(m.Ru)} МПа`,
+   `R_ск = ${fmt(m.Rs0,1)} · m_п(${fmt(m.ms)}) · m_в(${fmt(m.mv)}) · m_дл(${fmt(p.mdl)}) = ${fmt(m.Rsk,3)} МПа`,
+   `σ = M/W = ${fmt(c.sigma)} МПа;  τ = QS/(Ib) = ${fmt(c.tau,3)} МПа`,
+   `f = ${fmt(c.f)} мм при E = ${fmt(p.E,0)} МПа;  [f] = ${fmt(c.lf,0)}/${p.lim} = ${fmt(c.fu)} мм`,
+   `φ_м = 140·b²/(l_р·h)·k_ф = 140·${fmt(p.b,0)}²/(${fmt(p.lp*1000,0)}·${fmt(p.h,0)})·${fmt(KF[p.s])} = ${fmt(c.phi)}`
+  ].join('\n');
+}
+function bind(){
+  buildStatic();
+  document.querySelectorAll('.sch').forEach(b=>b.addEventListener('click',()=>{
+    setScheme(b.dataset.s); $('lim').value=SCHEMES[b.dataset.s].cant?150:250; custom(); render(); }));
+  $('variant').addEventListener('change',e=>{ if(e.target.value!=='0') loadVariant(e.target.value); render(); });
+  const custom=()=>{ if(!st.loading) $('variant').value='0'; };
+  ['N','q','L','A','species','grade','tw','mdl','E','lim','b','h','lp'].forEach(id=>{
+    $(id).addEventListener('input',()=>{
+      if(id==='lp') st.lpTouched=true;
+      if(id==='L'&&!st.lpTouched) $('lp').value=$('L').value;
+      custom(); render(); });
+  });
+  $('fit').addEventListener('click',()=>{ const hm=hMin(read()); if(Number.isFinite(hm)){ $('h').value=roundUp(hm,25); custom(); render(); } });
+  $('variant').value='20'; loadVariant(20); render();
+}
+bind();
+</script>
